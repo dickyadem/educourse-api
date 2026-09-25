@@ -141,3 +141,6 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+ERD.md
+aturan_misi_backend_educourse.md
+Dokumentasi_Skema_Database_FSD20.docx.md
