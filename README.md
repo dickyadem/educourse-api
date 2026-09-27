@@ -5,15 +5,15 @@ Project ini memenuhi tiga langkah mission backend (Mission FSD-20):
 menghubungkan Node.js ke database, mengimplementasikan DML, lalu
 membuatkan REST API.
 
-| | |
+| Ringkasan | Jumlah |
 | --- | --- |
 | **Tabel database** | 17 (sesuai `ERD.md`) |
 | **Tabel dengan CRUD** | 10 |
-| **Endpoint** | 51 |
+| **Endpoint** | 51 endpoint data + 1 endpoint status (`GET /`) |
 | **Foreign key** | 22 |
 | **Constraint** | 20 `CHECK`, 14 `UNIQUE` |
-| **Request Postman** | 35 dalam 6 folder |
-| **Pengujian otomatis** | 53, semua lolos |
+| **Request Postman** | 35 (7 request utama + 6 folder) |
+| **Pengujian Postman** | 62 deklarasi test; hasil diperiksa saat collection dijalankan |
 
 ---
 
@@ -21,9 +21,9 @@ membuatkan REST API.
 
 | Komponen | Teknologi |
 | --- | --- |
-| Runtime | Node.js (teruji v24.16.0) |
+| Runtime | Node.js |
 | Framework | Express 4.21 |
-| Database | MySQL / MariaDB 10.4 (XAMPP) |
+| Database | MySQL / MariaDB (XAMPP) |
 | Driver | mysql2 (connection pool) |
 | Konfigurasi | dotenv |
 | Pengujian | Postman |
@@ -34,7 +34,6 @@ membuatkan REST API.
 
 - Node.js 18 atau lebih baru
 - MySQL atau MariaDB yang sedang berjalan (XAMPP sudah cukup)
-  - Teruji di MariaDB 10.4.32
 
 ---
 
@@ -62,16 +61,18 @@ APP_PORT=3000
 
 **3. Buat database dan tabel**
 
-```bash
-mysql -u root < schema.sql
+```sql
+-- Jalankan dari klien mysql, setelah login dengan mysql -u root
+SOURCE schema.sql;
 ```
 
 Alternatif: buka `http://localhost/phpmyadmin`, lalu **Import** ->
 pilih `schema.sql`.
 
 > **Penting:** `schema.sql` memakai `DROP TABLE IF EXISTS`, jadi **semua
-> data lama akan hilang**. Untuk sekadar mengosongkan data tanpa
-> menghapus tabel, pakai `reset.sql`.
+> data lama pada 17 tabel akan hilang**. `reset.sql` menghapus data pada
+> 16 tabel tanpa menghapus struktur; `payment_methods` tetap dipertahankan.
+> Keduanya ditujukan untuk database development yang datanya boleh dihapus.
 
 **4. Jalankan server**
 
@@ -92,31 +93,19 @@ ini, berarti semuanya siap:
 
 ## Struktur project
 
-```
+```text
 src/
-â”œâ”€â”€ app.js                       # entry point Express + registrasi route
-â”œâ”€â”€ config/
-â”‚   â””â”€â”€ database.js              # connection pool mysql2
-â”œâ”€â”€ service/                     # lapisan query SQL
-â”‚   â”œâ”€â”€ userService.js
-â”‚   â”œâ”€â”€ categoryService.js
-â”‚   â”œâ”€â”€ tutorService.js
-â”‚   â”œâ”€â”€ courseService.js
-â”‚   â”œâ”€â”€ moduleService.js
-â”‚   â”œâ”€â”€ materialService.js
-â”‚   â”œâ”€â”€ assessmentService.js
-â”‚   â”œâ”€â”€ questionService.js
-â”‚   â”œâ”€â”€ questionOptionService.js
-â”‚   â””â”€â”€ reviewService.js
-â”œâ”€â”€ controller/                  # validasi payload + status code
-â”‚   â””â”€â”€ ... (satu file per tabel)
-â””â”€â”€ route/                       # definisi endpoint
-    â””â”€â”€ ... (satu file per tabel)
+|-- app.js                       # entry point Express + registrasi route
+|-- config/
+|   +-- database.js              # connection pool mysql2
+|-- service/                     # query SQL, satu file per resource
+|-- controller/                  # validasi payload + status code
++-- route/                       # definisi endpoint
 
-schema.sql                       # 17 tabel
-reset.sql                        # kosongkan tabel untuk ulang pengujian
+schema.sql                       # membuat ulang 17 tabel
+reset.sql                        # menghapus data 16 tabel untuk pengujian
 postman/
-â””â”€â”€ educourse-api.postman_collection.json
++-- educourse-api.postman_collection.json
 ```
 
 ### Aturan lapisan
@@ -148,7 +137,14 @@ mengikuti dokumen skema supaya tabel induk selalu lebih dulu dari anak.
 | Belajar | `material_progress`, `assessment_attempts`, `attempt_answers`, `reviews` |
 
 Aturan yang diterapkan:
----
+
+- Semua FK memakai `ON DELETE RESTRICT`, sehingga data induk yang masih
+  dirujuk tidak bisa dihapus.
+- Constraint nilai memakai `CHECK`, bukan `ENUM`.
+- FK `UNIQUE` membatasi relasi satu-ke-satu pada `assessments.material_id`,
+  `enrollments.order_id`, dan `reviews.enrollment_id`.
+- `material_progress` dan `attempt_answers` memakai primary key gabungan.
+- `users.id` berupa `VARCHAR(128)` untuk UID Firebase; password tidak disimpan.
 
 ## Validasi per tabel
 
@@ -161,7 +157,7 @@ Aturan yang diterapkan:
 | `materials` | video wajib `content_url`, summary wajib isi, tipe terbatas |
 | `assessments` | hanya untuk pretest/quiz/exam, nilai 0-100, unik per materi |
 | `questions` | `position` >= 1 dan unik di dalam satu assessment |
-| `question_options` | tepat satu kunci per soal, minimal 2 opsi |
+| `question_options` | position unik per soal; penghapusan ditolak jika tersisa <= 2 opsi |
 | `reviews` | rating 1-5, satu ulasan per enrollment, kelas harus selesai |
 
 Validasi dijalankan berlapis:
@@ -169,24 +165,10 @@ Validasi dijalankan berlapis:
 1. **Controller** menolak lebih dulu supaya pesan error jelas (400/409).
 2. **Constraint database** (`CHECK` dan `UNIQUE`) menjadi pengaman terakhir.
 
----
-
-
-- Semua FK memakai `ON DELETE RESTRICT` supaya riwayat pembayaran dan
-  belajar tidak terhapus otomatis. Penghapusan berantai dicegah di backend
-  dengan pesan yang jelas.
-- Constraint nilai memakai `CHECK`, bukan `ENUM`, supaya mudah diubah.
-- Tabel dengan relasi opsional 1:1 memakai FK `UNIQUE`
-  (`assessments.material_id`, `enrollments.order_id`, `reviews.enrollment_id`).
-- `material_progress` dan `attempt_answers` memakai primary key gabungan.
-- `users.id` tetap `VARCHAR(128)` karena berisi UID Firebase, tidak diubah
-  menjadi angka.
-- `users` tidak menyimpan password. Autentikasi tetap memakai Firebase.
-
-**Aturan lintas-baris tidak dijamin database.** Hal seperti minimal dua opsi
-per soal, tepat satu jawaban benar, dan kesesuaian materi dengan assessment
-harus divalidasi backend di dalam transaksi. Contohnya sudah dikerjakan di
-`questionOptionController` untuk menjaga satu kunci jawaban per soal.
+**Batasan validasi opsi jawaban:** pembuatan soal belum mewajibkan minimal
+dua opsi atau tepat satu jawaban benar. Controller melepas kunci lama saat
+memilih kunci baru, tetapi operasinya belum dibungkus transaksi. Karena itu,
+aturan lintas-baris tersebut belum dijamin sepenuhnya.
 
 ---
 
@@ -253,7 +235,7 @@ Base URL: `http://localhost:3000`
 | GET | `/reviews/summary?course_id=1` | Rata-rata rating satu kelas |
 
 Rata-rata rating dihitung saat dibaca, bukan disimpan, supaya tidak
-lSongsing dengan data ulasan.
+berbeda dengan data ulasan yang tersimpan.
 
 ### Contoh request
 
@@ -273,7 +255,7 @@ lSongsing dengan data ulasan.
 dan `photo_url` opsional. `role` hanya boleh `student` atau `admin`, dengan
 default `student`.
 
-**PATCH /users/:id** â€” hanya kirim field yang diubah.
+**PATCH /users/:id** - hanya kirim field yang diubah.
 
 ```json
 { "name": "Budi_updated", "phone": "08999999999" }
@@ -334,7 +316,7 @@ acak.
 
 **Isi collection**
 
-| Folder | Isi | DML |
+| Nomor request / folder | Isi | DML |
 | --- | --- | --- |
 | 0 | Cek kondisi data awal | Persiapan |
 | 1-2 | Create user dan user kedua | INSERT |
@@ -352,8 +334,9 @@ acak.
 Buka tab **Test Results**. Warna hijau berarti semua test lolos, merah
 berarti ada yang gagal.
 
-> **Kode 400, 404, dan 409 bukan kegagalan.** Folder 7, 8a, 10e, 11c, dan
-> 12 sengaja menguji error handling. Contohnya `7c. POST email duplikat`
+> **Kode 400, 404, dan 409 bisa menjadi hasil yang diharapkan.** Folder 7
+> dan 12 serta request 8a, 10e, dan 11c sengaja menguji error handling.
+> Contohnya `7c. POST email duplikat`
 > menjawab 409 karena emailnya memang sudah ada - itu bukti validasi
 > backend bekerja, bukan kegagalan.
 
@@ -362,7 +345,7 @@ berarti ada yang gagal.
 | Nama | Nilai | Cara diisi |
 | --- | --- | --- |
 | `baseUrl` | `http://localhost:3000` | manual |
-| `userId` | `uid001` | manual |
+| `userId` | `uid001` | diatur ulang oleh pre-request script request 1 |
 | `categoryId` | - | otomatis dari request 9a |
 | `tutorId` | - | otomatis dari request 9c |
 | `courseId` | - | otomatis dari request 10a |
@@ -375,17 +358,28 @@ berarti ada yang gagal.
 Kalau server jalan di port lain, ubah `baseUrl` di tab **Variables** tanpa
 perlu edit tiap request.
 
-**Kalau collection stuck (muncul 409 di slug atau position)**
+**Reset sebelum menjalankan ulang collection**
 
-Folder 12 sengaja menyisakan kategori dan tutor yang masih dipakai kelas,
-sehingga keduanya tidak bisa dihapus lewat API. Bersihkan dulu:
+Gunakan database development khusus: pre-request script request 1 mencoba
+menghapus seluruh data pada endpoint CRUD, bukan hanya data buatan collection.
+Pembersihan ini belum menjamin database kosong. Dua opsi jawaban yang tersisa
+tidak bisa dihapus lewat API, sehingga soal dan data induknya ikut tertahan.
+Data transaksi yang merujuk kelas atau user juga dapat menghalangi penghapusan.
 
-```bash
-mysql -u root < reset.sql
+Untuk mengulang dari kondisi bersih, jalankan reset melalui klien mysql
+dari direktori proyek:
+
+```sql
+SOURCE reset.sql;
 ```
 
 Lalu jalankan ulang collection dari awal. Alternatifnya, salin perintah
-di `reset.sql` ke tab SQL phpMyAdmin.
+di `reset.sql` ke tab SQL phpMyAdmin. Reset menghapus data pada 16 tabel,
+mempertahankan `payment_methods`, dan tidak mengatur ulang AUTO_INCREMENT.
+
+`TRUNCATE TABLE users` ditolak karena tabel tersebut dirujuk foreign key.
+`DELETE FROM users` juga ditolak jika masih ada data yang merujuk user.
+`reset.sql` memakai `DELETE` dengan urutan anak sebelum induk.
 
 ---
 
@@ -396,7 +390,7 @@ autentikasi tetap memakai Firebase Authentication. Kolom `role` sudah ada
 di tabel `users`, tetapi belum ada middleware yang membatasi akses
 berdasarkan nilai tersebut.
 
-**Lima tabel sengaja tidak diberi CRUD:**
+**Tujuh tabel belum memiliki endpoint CRUD:**
 
 | Tabel | Alasan |
 | --- | --- |
@@ -405,14 +399,16 @@ berdasarkan nilai tersebut.
 | `enrollments` | Dibuat sistem otomatis saat pembayaran berhasil |
 | `material_progress` | PK gabungan, delete berarti reset progres |
 | `assessment_attempts` | Menyimpan riwayat percobaan belajar |
+| `attempt_answers` | Menyimpan jawaban peserta per percobaan |
+| `payment_methods` | Konfigurasi metode pembayaran |
 
-Kelimanya bukan data yang dikelola langsung dari input pengguna, jadi CRUD
-biasa akan merusak alur bisnisnya.
+Alur pembayaran, pendaftaran kelas, dan pencatatan progres belum
+diimplementasikan di API ini; tabelnya sudah tersedia dalam skema.
 
 **`schema.sql` bersifat destruktif.** Untuk mengosongkan data tanpa
 menghapus tabel, pakai `reset.sql`.
 
-**Perbedaan dari dokumen skema.** Kolom bertipe `TEXT` ditulis `NULL`
-tanpa `DEFAULT NULL` karena MariaDB 10.4 menolak nilai default pada tipe
-TEXT. Selebihnya mengikuti `Dokumentasi_Skema_Database_FSD20.docx.md`.
+**Dokumen referensi:** `ERD.md` dan
+`Dokumentasi_Skema_Database_FSD20.docx.md`. Gunakan `schema.sql` sebagai
+acuan struktur yang dibuat oleh proyek ini.
 
