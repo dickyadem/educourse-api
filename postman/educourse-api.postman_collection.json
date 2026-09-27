@@ -1,0 +1,1294 @@
+{
+	"info": {
+		"_postman_id": "b7c1e2a4-3d5f-4a1b-9c8e-2f6a7b4d1e30",
+		"name": "Educourse API - Mission FSD-20",
+		"description": "=======================================================\nCARA TES REST API - BACKEND EDUCOURSE (Mission FSD-20)\n=======================================================\n\nLANGKAH 1 - SIAPKAN SERVER\n  Buka terminal di folder project:\n      cd C:\\Users\\ASUS\\Documents\\GitHub\\educourse-api\n  Jalankan:\n      npm start\n  Tunggu muncul dua baris ini di terminal:\n      [database] terkoneksi ke MySQL \"educourse\" di 127.0.0.1:3306\n      [server] berjalan di http://localhost:3000\n  Kalau muncul [database] gagal terkoneksi, berarti MySQL XAMPP belum jalan.\n  Buka XAMPP Control Panel lalu klik Start pada modul MySQL.\n\nLANGKAH 2 - PASTIKAN DATABASE ADA\n  Database dan 17 tabel dibuat oleh file schema.sql.\n  Kalau tabel belum ada, jalankan sekali:\n      mysql -u root < schema.sql\n  ATAU import schema.sql lewat phpMyAdmin (http://localhost/phpmyadmin).\n\nLANGKAH 3 - IMPORT COLLECTION\n  Di Postman: Import > pilih file\n  educourse-api.postman_collection.json > Import\n\nLANGKAH 4 - JALANKAN COLLECTION\n  Klik kanan nama collection > Run collection > Run.\n  JANGAN menjalankan request satu per satu secara acak.\n\nLANGKAH 5 - LIHAT HASIL\n  Di tab Test Results, tiap request akan tampil:\n    hijau  = semua test LOLOS (lolos)\n    merah   = ada test GAGAL\n  Buka juga tab Console untuk melihat pesan dari pre-request script.\n\n=======================================================\nURUTAN REQUEST (JALANKAN DARI ATAS KE BAWAH)\n=======================================================\n\nFolder 0. Setup\n  0  Cek kondisi data awal\n     Hanya GET /users, tidak wajib dijalankan.\n\nFolder 1-2. Users (tabel users)\n  1  Create User            POST   /users         INSERT\n  2  Create User Kedua      POST   /users         INSERT\n  3  Get All Users          GET    /users         SELECT semua\n  4  Get User by ID         GET    /users/:id     SELECT by id\n  5  Update User            PATCH  /users/:id     UPDATE by id\n  6  Delete User            DELETE /users/:id     DELETE by id\n  7a GET tidak ada          GET    /users/:id     404\n  7b POST kurang field      POST   /users         400\n  7c POST email duplikat    POST   /users         409\n  7d PATCH role ngawur      PATCH  /users/:id     400\n  7e DELETE dua kali        DELETE /users/:id     404\n  8a POST user sama         POST   /users         409\n  8b cek tidak ada duplikat GET    /users         200\n  8c delete sisa           DELETE /users/uid001  200\n\nFolder 9. Categories & Tutors (master data)\n  9a POST /categories       INSERT kategori\n  9b GET  /categories       SELECT semua\n  9c POST /tutors           INSERT tutor\n  9d GET  /tutors           SELECT semua\n  9e PATCH /categories/:id  UPDATE kategori\n\nFolder 10. Course Structure\n  10a POST /courses         INSERT kelas (JOIN kategori + tutor)\n  10b GET  /courses         SELECT semua kelas\n  10c POST /modules         INSERT modul\n  10d POST /materials       INSERT video (wajib content_url)\n  10e POST /materials       video tanpa URL, harus 400\n  10f PATCH /materials/:id  UPDATE judul saja\n\nFolder 11. Assessments & Questions\n  11a POST /materials       INSERT quiz\n  11b POST /assessments     INSERT konfigurasi penilaian\n  11c POST /assessments     untuk video, harus 400\n  11d POST /questions       INSERT soal\n  11e POST /question-options INSERT opsi kunci (is_correct true)\n  11f POST /question-options INSERT opsi salah\n\nFolder 12. Delete Bertingkat (FK RESTRICT)\n  12a DELETE /categories/:id harus 409 (dipakai kelas)\n  12b DELETE /tutors/:id     harus 409 (mengajar kelas)\n  12c DELETE /questions/:id  harus 409 (punya opsi)\n\n=======================================================\nKETIKA COLLECTION STUCK (MUNCUL 409 DI SLUG/POSITION)\n=======================================================\n\nFolder 9 sampai 11 membuat data yang akan menumpuk kalau collection\ndijalankan berulang. Folder 12 juga sengaja menyisakan kelas dan kategori\nyang masih dipakai, jadi kategori dan tutor TIDAK bisa dihapus lewat API.\n\nKalau muncul 409 di folder 9/10/11, bersihkan dengan:\n\n    mysql -u root < reset.sql\n\nlalu jalankan ulang collection dari awal.\n\nFile reset.sql mengosongkan semua tabel. Jalankan lewat terminal\natau salin perintahnya ke tab SQL phpMyAdmin.\n\n=======================================================\nVARIABLE COLLECTION\n=======================================================\n\nbaseUrl          http://localhost:3000   alamat server\nuserId           uid001                 id user untuk request by id\n\nVariabel berikut diisi OTOMATIS oleh test script tiap request create.\nJangan diisi manual:\n  categoryId, tutorId, courseId, moduleId,\n  videoMaterialId, quizMaterialId, assessmentId, questionId\n\nKalau server jalan di port lain, ubah baseUrl di tab Variables.\n\n=======================================================\nHASIL YANG DIHARAPKAN\n=======================================================\n\n35 request total, 0 gagal.\n  - request \"0. Setup\" hanya GET /users dan selalu lolos\n  - 34 request sisanya diuji penuh\n\nStatus code yang muncul:\n  200 = berhasil\n  201 = data dibuat\n  400 = payload tidak valid\n  404 = data tidak ditemukan\n  409 = bentrok (duplikat atau masih dipakai)\n\nPENTING: request dengan kode 400, 404, atau 409 di folder 7, 8a, 10e,\n11c, dan 12 itu memang ITU yang diharapkan. Request tersebut sengaja\nmenguji error handling, bukan kegagalan.\n\nContoh: \"7c. POST email duplikat\" menjawab 409 karena emailnya memang\nsudah ada. Itu bukti validasi backend bekerja.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "0. Setup - Cek Kondisi Awal",
+			"description": "Cek data yang ada sebelum collection dijalankan. Tidak wajib, tapi berguna sebagai titik awal.\n\nKalau folder 9-11 pernah dijalankan sebelumnya, data dari run itu masih ada di database. Lihat bagian \"KETIKA COLLECTION STUCK\" di deskripsi collection untuk cara membersihkannya.",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/users",
+					"host": ["{{baseUrl}}"],
+					"path": ["users"]
+				},
+				"description": "Cek data yang ada sebelum tes, untuk melihat kondisi awal."
+			}
+		},
+		{
+			"name": "1. Create User (POST /users) - INSERT",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"type": "text/javascript",
+						"exec": [
+							"// Reset variabel ke nilai awal. Variabel collection di Postman",
+							"// tersimpan antar-run, jadi tanpa reset ini run berikutnya",
+							"// memakai id dari run sebelumnya dan bentrok.",
+							"pm.collectionVariables.set('userId', 'uid001');",
+							"for (const k of ['categoryId','tutorId','courseId','moduleId',",
+							"  'videoMaterialId','quizMaterialId','assessmentId','questionId']) {",
+							"    pm.collectionVariables.set(k, '');",
+							"}",
+							"",
+							"// Membersihkan sisa data dari run sebelumnya. Urutan WAJIB anak",
+							"// lebih dulu dari induk karena foreign key memakai ON DELETE RESTRICT.",
+							"// Kalau tidak dihapus, run kedua akan gagal 409 pada slug/position unik.",
+							"const base = pm.collectionVariables.get('baseUrl');",
+							"",
+							"const TABEL = ['/reviews', '/question-options', '/questions',",
+							"  '/assessments', '/materials', '/modules', '/courses',",
+							"  '/tutors', '/categories', '/users'];",
+							"",
+							"for (const path of TABEL) {",
+							"    const list = await new Promise((resolve) => {",
+							"        pm.sendRequest({ url: base + path, method: 'GET' }, (err, res) => {",
+							"            if (err || !res || res.code !== 200) return resolve([]);",
+							"            try { resolve(res.json()); } catch (e) { resolve([]); }",
+							"        });",
+							"    });",
+							"    for (const row of list) {",
+							"        await new Promise((resolve) => {",
+							"            pm.sendRequest({",
+							"                url: base + path + '/' + encodeURIComponent(row.id),",
+							"                method: 'DELETE'",
+							"            }, () => resolve());",
+							"        });",
+							"    }",
+							"}",
+							"",
+							"console.log('Setup: data dari run sebelumnya dibersihkan');"
+						]
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"exec": [
+							"pm.test('Status 201 Created', function () {",
+							"    pm.response.to.have.status(201);",
+							"});",
+							"",
+							"const body = pm.response.json();",
+							"pm.test('Data user dikembalikan', function () {",
+							"    pm.expect(body.id).to.eql(pm.collectionVariables.get('userId'));",
+							"    pm.expect(body.role).to.eql('student');",
+							"});",
+							"",
+							"// Simpan id-aslinya untuk request berikutnya",
+							"pm.collectionVariables.set('userId', body.id);"
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"id\": \"{{userId}}\",\n  \"name\": \"Budi Santoso\",\n  \"email\": \"budi@mail.com\",\n  \"phone\": \"08123456789\",\n  \"role\": \"student\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}/users",
+					"host": ["{{baseUrl}}"],
+					"path": ["users"]
+				},
+				"description": "Langkah 2 misi: INSERT. Menambah satu user baru.\n\nField wajib: id, name, email.\nField opsional: phone, photo_url, role (default student).\n\nid adalah UID Firebase berupa string, jadi wajib dikirim manual."
+			}
+		},
+		{
+			"name": "2. Create User Kedua (POST /users) - INSERT",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"exec": [
+							"pm.test('Status 201 Created', function () {",
+							"    pm.response.to.have.status(201);",
+							"});",
+							"",
+							"const body = pm.response.json();",
+							"pm.test('Role admin tersimpan', function () {",
+							"    pm.expect(body.role).to.eql('admin');",
+							"});"
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"id\": \"uid002\",\n  \"name\": \"Siti Aminah\",\n  \"email\": \"siti@mail.com\",\n  \"role\": \"admin\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}/users",
+					"host": ["{{baseUrl}}"],
+					"path": ["users"]
+				},
+				"description": "INSERT user kedua tanpa phone dan photo_url, untuk membuktikan kolom opsional benar-benar opsional."
+			}
+		},
+		{
+			"name": "3. Get All Users (GET /users) - SELECT",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"exec": [
+							"pm.test('Status 200 OK', function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"const body = pm.response.json();",
+							"pm.test('Respons berupa array', function () {",
+							"    pm.expect(body).to.be.an('array');",
+							"});",
+							"pm.test('Ada 2 user', function () {",
+							"    pm.expect(body.length).to.eql(2);",
+							"});",
+							"",
+							"console.log(body);"
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/users",
+					"host": ["{{baseUrl}}"],
+					"path": ["users"]
+				},
+				"description": "Langkah 2 misi: SELECT semua data. Tidak ada body."
+			}
+		},
+		{
+			"name": "4. Get User by ID (GET /users/:id) - SELECT by id",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"exec": [
+							"pm.test('Status 200 OK', function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"const body = pm.response.json();",
+							"pm.test('ID sesuai', function () {",
+							"    pm.expect(body.id).to.eql(pm.collectionVariables.get('userId'));",
+							"});"
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/users/{{userId}}",
+					"host": ["{{baseUrl}}"],
+					"path": ["users", "{{userId}}"]
+				},
+				"description": "SELECT satu user berdasarkan id. Variabel userId dipakai supaya tidak perlu ganti manual tiap user."
+			}
+		},
+		{
+			"name": "5. Update User (PATCH /users/:id) - UPDATE",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"exec": [
+							"pm.test('Status 200 OK', function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"const body = pm.response.json();",
+							"pm.test('name berubah', function () {",
+							"    pm.expect(body.name).to.eql('Budi_updated');",
+							"});",
+							"pm.test('phone berubah', function () {",
+							"    pm.expect(body.phone).to.eql('08999999999');",
+							"});",
+							"pm.test('email tidak berubah (tidak dikirim)', function () {",
+							"    pm.expect(body.email).to.eql('budi@mail.com');",
+							"});",
+							"pm.test('updated_at lebih baru dari created_at', function () {",
+							"    pm.expect(new Date(body.updated_at) > new Date(body.created_at)).to.be.true;",
+							"});"
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "PATCH",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"name\": \"Budi_updated\",\n  \"phone\": \"08999999999\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}/users/{{userId}}",
+					"host": ["{{baseUrl}}"],
+					"path": ["users", "{{userId}}"]
+				},
+				"description": "Langkah 2 misi: UPDATE by id. Hanya kirim field yang diubah.\n\nKolom yang tidak dikirim tidak akan berubah - inilah bedanya PATCH dengan PUT."
+			}
+		},
+		{
+			"name": "6. Delete User (DELETE /users/:id) - DELETE",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"exec": [
+							"pm.test('Status 200 OK', function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test('Pesan berhasil', function () {",
+							"    pm.expect(pm.response.json().message).to.eql('User berhasil dihapus');",
+							"});"
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/users/uid002",
+					"host": ["{{baseUrl}}"],
+					"path": ["users", "uid002"]
+				},
+				"description": "Langkah 2 misi: DELETE by id. Menghapus user kedua (uid002), bukan userId, supaya data sisa bisa dipakai cek error 404."
+			}
+		},
+		{
+			"name": "7. Error Cases - Validasi",
+			"description": "Tes error handling. Jalankan setelah request 1-6 selesai.",
+			"item": [
+				{
+					"name": "7a. GET user tidak ada - 404",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 404', function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"pm.test('Pesan error benar', function () {",
+									"    pm.expect(pm.response.json().message).to.eql('User tidak ditemukan');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/users/tidak-ada",
+							"host": ["{{baseUrl}}"],
+							"path": ["users", "tidak-ada"]
+						},
+						"description": "ID yang tidak ada di database harus 404, bukan 500 atau 200 kosong."
+					}
+				},
+				{
+					"name": "7b. POST tanpa field wajib - 400",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 400', function () {",
+									"    pm.response.to.have.status(400);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Tanpa ID\",\n  \"email\": \"tanpa-id@mail.com\"\n}",
+							"options": {"raw": {"language": "json"}}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/users",
+							"host": ["{{baseUrl}}"],
+							"path": ["users"]
+						},
+						"description": "Field id tidak dikirim. id adalah PK sehingga wajib ada."
+					}
+				},
+				{
+					"name": "7c. POST email duplikat - 409",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 409 Conflict', function () {",
+									"    pm.response.to.have.status(409);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"id\": \"uid003\",\n  \"name\": \"Duplikat\",\n  \"email\": \"budi@mail.com\"\n}",
+							"options": {"raw": {"language": "json"}}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/users",
+							"host": ["{{baseUrl}}"],
+							"path": ["users"]
+						},
+						"description": "Email sama dengan user dari request 1. Database punya UNIQUE email, backend menolak lebih dulu dengan 409."
+					}
+				},
+				{
+					"name": "7d. PATCH role tidak valid - 400",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 400', function () {",
+									"    pm.response.to.have.status(400);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"role\": \"superadmin\"\n}",
+							"options": {"raw": {"language": "json"}}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/users/{{userId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["users", "{{userId}}"]
+						},
+						"description": "role di luar daftar student/admin. Controller menolak dengan 400 sebelum query jalan, jadi tidak jadi error 500 dari CHECK constraint."
+					}
+				},
+				{
+					"name": "7e. DELETE dua kali - 404",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 404 (sudah dihapus di request 6)', function () {",
+									"    pm.response.to.have.status(404);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/users/uid002",
+							"host": ["{{baseUrl}}"],
+							"path": ["users", "uid002"]
+						},
+						"description": "uid002 sudah dihapus di request 6. affectedRows 0 jadi backend balas 404."
+					}
+				}
+			]
+		}
+		,{
+			"name": "8. Idempotency Check - Uji Jalan Ulang",
+			"description": "Membuktikan collection bisa dijalankan berulang tanpa gagal.\n\nJalankan request 1 (Create User) dua kali. Yang kedua harus 409, bukan crash. Ini membuktikan validasi backend bekerja dan data tidak terduplikasi diam-diam.",
+			"item": [
+				{
+					"name": "8a. POST user sama - harus 409 (idempoten)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 409 Conflict (data sudah ada)', function () {",
+									"    pm.response.to.have.status(409);",
+									"});",
+									"",
+									"pm.test('Server balas pesan, tidak crash', function () {",
+									"    pm.expect(pm.response.json().message).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"id\": \"{{userId}}\",\n  \"name\": \"Budi Santoso\",\n  \"email\": \"budi@mail.com\",\n  \"phone\": \"08123456789\",\n  \"role\": \"student\"\n}",
+							"options": {"raw": {"language": "json"}}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/users",
+							"host": ["{{baseUrl}}"],
+							"path": ["users"]
+						},
+						"description": "POST data yang sama persis dengan request 1.\n\nHarus jawab 409 karena email sudah terdaftar. Kalau jawab 201, ada bug: INSERT tidak memeriksa duplikat."
+					}
+				},
+				{
+					"name": "8b. GET all - pastikan tidak ada duplikat",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"const emails = body.map(u => u.email);",
+									"const unik = [...new Set(emails)];",
+									"",
+									"pm.test('Tidak ada email duplikat', function () {",
+									"    pm.expect(emails.length).to.eql(unik.length);",
+									"});",
+									"pm.test('Hanya 1 user tersisa (uid002 sudah dihapus)', function () {",
+									"    pm.expect(body.length).to.eql(1);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/users",
+							"host": ["{{baseUrl}}"],
+							"path": ["users"]
+						},
+						"description": "Setelah request 8a gagal dengan 409, data harus tetap utuh - tidak boleh ada baris duplikat yang bocor.\n\nTest ini membandingkan jumlah email dengan jumlah email unik."
+					}
+				},
+				{
+					"name": "8c. DELETE user tersisa - 200",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/users/uid001",
+							"host": ["{{baseUrl}}"],
+							"path": ["users", "uid001"]
+						},
+						"description": "Bersihkan sisa data supaya collection bisa dijalankan lagi dari awal.\n\nID ditulis langsung uid001, bukan memakai {{userId}}, karena userId sudah berubah menjadi uid002 sejak request 2 dan user itu sudah dihapus di request 6."
+					}
+				}
+			]
+		}
+		,{
+			"name": "9. Categories & Tutors (master data)",
+			"description": "Master data yang dipakai semua tabel lain. Jalankan sebelum request kelas.\n\nMenyimpan id hasil create ke collection variable supaya request berikutnya tidak perlu ganti id manual.",
+			"item": [
+				{
+					"name": "9a. POST /categories",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 201 Created', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"const b = pm.response.json();",
+									"pm.collectionVariables.set('categoryId', b.id);",
+									"pm.collectionVariables.set('categorySlug', b.slug);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Programming\",\n  \"slug\": \"programming\"\n}",
+							"options": {"raw": {"language": "json"}}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/categories",
+							"host": ["{{baseUrl}}"],
+							"path": ["categories"]
+						},
+						"description": "INSERT kategori. slug harus huruf kecil, angka, dan strip saja."
+					}
+				},
+				{
+					"name": "9b. GET /categories",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test('Respons berupa array', function () {",
+									"    pm.expect(pm.response.json()).to.be.an('array');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/categories",
+							"host": ["{{baseUrl}}"],
+							"path": ["categories"]
+						},
+						"description": "SELECT semua kategori."
+					}
+				},
+				{
+					"name": "9c. POST /tutors",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 201 Created', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"const b = pm.response.json();",
+									"pm.collectionVariables.set('tutorId', b.id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Andi\",\n  \"job_title\": \"Senior Engineer\",\n  \"bio\": \"Pengajar dengan pengalaman 10 tahun\"\n}",
+							"options": {"raw": {"language": "json"}}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/tutors",
+							"host": ["{{baseUrl}}"],
+							"path": ["tutors"]
+						},
+						"description": "INSERT tutor. Field wajib: name, job_title, bio."
+					}
+				},
+				{
+					"name": "9d. GET /tutors",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/tutors",
+							"host": ["{{baseUrl}}"],
+							"path": ["tutors"]
+						},
+						"description": "SELECT semua tutor."
+					}
+				},
+				{
+					"name": "9e. PATCH /categories/:id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test('nama berubah', function () {",
+									"    pm.expect(pm.response.json().name).to.eql('Programming & Web');",
+									"});",
+									"pm.test('slug tidak ikut berubah', function () {",
+									"    pm.expect(pm.response.json().slug).to.eql('programming');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Programming & Web\"\n}",
+							"options": {"raw": {"language": "json"}}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/categories/{{categoryId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["categories", "{{categoryId}}"]
+						},
+						"description": "UPDATE kategori. Hanya kirim field yang diubah.\n\nTest kedua membuktikan kolom yang tidak dikirim tetap utuh."
+					}
+				}
+			]
+		}
+		,{
+			"name": "10. Course Structure (kelas, modul, materi)",
+			"description": "Berantai dari kategori dan tutor di folder 9. Urutan: kelas -> modul -> materi. Semua id diambil dari collection variable.",
+			"item": [
+				{
+					"name": "10a. POST /courses",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 201 Created', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"const b = pm.response.json();",
+									"pm.collectionVariables.set('courseId', b.id);",
+									"pm.test('JOIN kategori berhasil', function () {",
+									"    pm.expect(b.category_name).to.be.a('string');",
+									"});",
+									"pm.test('JOIN tutor berhasil', function () {",
+									"    pm.expect(b.tutor_name).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"category_id\": {{categoryId}},\n  \"tutor_id\": {{tutorId}},\n  \"slug\": \"belajar-js\",\n  \"title\": \"Belajar JavaScript\",\n  \"description\": \"Kursus lengkap JavaScript dari dasar\",\n  \"image_url\": \"https://example.com/js.jpg\",\n  \"image_alt\": \"Gambar cover Belajar JavaScript\",\n  \"price_amount\": 299000,\n  \"status\": \"published\"\n}",
+							"options": {"raw": {"language": "json"}}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/courses",
+							"host": ["{{baseUrl}}"],
+							"path": ["courses"]
+						},
+						"description": "INSERT kelas. FK category_id dan tutor_id harus benar-benar ada.\n\nRespons sudah termasuk nama kategori dan tutor dari JOIN."
+					}
+				},
+				{
+					"name": "10b. GET /courses",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test('Ada kelas', function () {",
+									"    pm.expect(pm.response.json().length).to.be.above(0);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/courses",
+							"host": ["{{baseUrl}}"],
+							"path": ["courses"]
+						},
+						"description": "SELECT semua kelas beserta nama kategori dan tutor."
+					}
+				},
+				{
+					"name": "10c. POST /modules",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 201 Created', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"pm.collectionVariables.set('moduleId', pm.response.json().id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"course_id\": {{courseId}},\n  \"title\": \"Modul 1 - Fundamentals\",\n  \"position\": 1\n}",
+							"options": {"raw": {"language": "json"}}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/modules",
+							"host": ["{{baseUrl}}"],
+							"path": ["modules"]
+						},
+						"description": "INSERT modul. position harus >= 1 dan unik per kelas."
+					}
+				},
+				{
+					"name": "10d. POST /materials - video",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 201 Created', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"const b = pm.response.json();",
+									"pm.collectionVariables.set('videoMaterialId', b.id);",
+									"pm.test('content_url tersimpan', function () {",
+									"    pm.expect(b.content_url).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"module_id\": {{moduleId}},\n  \"title\": \"Intro JavaScript\",\n  \"type\": \"video\",\n  \"content_url\": \"https://example.com/video.mp4\",\n  \"duration_seconds\": 600,\n  \"position\": 1,\n  \"is_preview\": true\n}",
+							"options": {"raw": {"language": "json"}}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/materials",
+							"host": ["{{baseUrl}}"],
+							"path": ["materials"]
+						},
+						"description": "INSERT materi video. Aturan: video WAJIB mengisi content_url."
+					}
+				},
+				{
+					"name": "10e. POST /materials video tanpa URL (400)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 400', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"pm.test('pesan menyebut content_url', function () {",
+									"    pm.expect(pm.response.json().message).to.contain('content_url');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"module_id\": {{moduleId}},\n  \"title\": \"Video Tanpa URL\",\n  \"type\": \"video\",\n  \"position\": 9\n}",
+							"options": {"raw": {"language": "json"}}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/materials",
+							"host": ["{{baseUrl}}"],
+							"path": ["materials"]
+						},
+						"description": "Harus DITOLAK 400. Membuktikan aturan isi konten ditegakkan backend."
+					}
+				},
+				{
+					"name": "10f. PATCH /materials/:id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"const b = pm.response.json();",
+									"pm.test('judul berubah', function () {",
+									"    pm.expect(b.title).to.contain('(revisi)');",
+									"});",
+									"pm.test('content_url TIDAK ikut terhapus', function () {",
+									"    pm.expect(b.content_url).to.eql('https://example.com/video.mp4');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Intro JavaScript (revisi)\"\n}",
+							"options": {"raw": {"language": "json"}}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/materials/{{videoMaterialId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["materials", "{{videoMaterialId}}"]
+						},
+						"description": "UPDATE materi hanya judul. Test kedua membuktikan kolom yang tidak dikirim tetap utuh."
+					}
+				}
+			]
+		}
+		,{
+			"name": "11. Assessments & Questions (penilaian)",
+			"description": "Rantai penilaian. Butuh materi bertipe quiz dari folder 10.",
+			"item": [
+				{
+					"name": "11a. POST /materials - quiz",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 201 Created', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"pm.collectionVariables.set('quizMaterialId', pm.response.json().id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"module_id\": {{moduleId}},\n  \"title\": \"Kuis 1\",\n  \"type\": \"quiz\",\n  \"position\": 5\n}",
+							"options": {"raw": {"language": "json"}}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/materials",
+							"host": ["{{baseUrl}}"],
+							"path": ["materials"]
+						},
+						"description": "Materi tipe quiz tidak butuh content_url karena isinya soal."
+					}
+				},
+				{
+					"name": "11b. POST /assessments",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 201 Created', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"const b = pm.response.json();",
+									"pm.collectionVariables.set('assessmentId', b.id);",
+									"pm.test('passing_score 60', function () {",
+									"    pm.expect(b.passing_score).to.eql(60);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"material_id\": {{quizMaterialId}},\n  \"passing_score\": 60\n}",
+							"options": {"raw": {"language": "json"}}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/assessments",
+							"host": ["{{baseUrl}}"],
+							"path": ["assessments"]
+						},
+						"description": "INSERT assessment. Hanya boleh untuk material pretest/quiz/exam."
+					}
+				},
+				{
+					"name": "11c. POST /assessments untuk video (400)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 400 (video tidak boleh punya assessment)', function () {",
+									"    pm.response.to.have.status(400);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"material_id\": {{videoMaterialId}},\n  \"passing_score\": 60\n}",
+							"options": {"raw": {"language": "json"}}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/assessments",
+							"host": ["{{baseUrl}}"],
+							"path": ["assessments"]
+						},
+						"description": "Harus DITOLAK 400. Video tidak menyimpan soal."
+					}
+				},
+				{
+					"name": "11d. POST /questions",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 201 Created', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"pm.collectionVariables.set('questionId', pm.response.json().id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"assessment_id\": {{assessmentId}},\n  \"question_text\": \"Apa itu JavaScript?\",\n  \"position\": 1\n}",
+							"options": {"raw": {"language": "json"}}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/questions",
+							"host": ["{{baseUrl}}"],
+							"path": ["questions"]
+						},
+						"description": "INSERT soal pilihan ganda. position >= 1 dan unik per assessment."
+					}
+				},
+				{
+					"name": "11e. POST /question-options (kunci)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 201 Created', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"pm.test('is_correct tersimpan', function () {",
+									"    pm.expect(pm.response.json().is_correct).to.eql(1);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"question_id\": {{questionId}},\n  \"option_text\": \"Bahasa pemrograman\",\n  \"is_correct\": true,\n  \"position\": 1\n}",
+							"options": {"raw": {"language": "json"}}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/question-options",
+							"host": ["{{baseUrl}}"],
+							"path": ["question-options"]
+						},
+						"description": "INSERT opsi jawaban sebagai kunci. Opsi berikutnya yang ditandai benar akan memindahkan kunci dari opsi lama."
+					}
+				},
+				{
+					"name": "11f. POST /question-options (salah)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 201 Created', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"pm.test('bukan kunci', function () {",
+									"    pm.expect(pm.response.json().is_correct).to.eql(0);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"question_id\": {{questionId}},\n  \"option_text\": \"Sistem operasi\",\n  \"position\": 2\n}",
+							"options": {"raw": {"language": "json"}}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/question-options",
+							"host": ["{{baseUrl}}"],
+							"path": ["question-options"]
+						},
+						"description": "Opsi kedua. Soal wajib punya minimal 2 opsi."
+					}
+				}
+			]
+		}
+		,{
+			"name": "12. Delete Bertingkat (FK RESTRICT)",
+			"description": "Membuktikan ON DELETE RESTRICT bekerja. Jalankan setelah folder 9-11.\n\nCATATAN PENTING: folder ini SENGAJA menyisakan kategori dan tutor yang masih dipakai kelas. Karena itu kategori dan tutor TIDAK bisa dihapus lewat API setelah folder ini dijalankan - kategori akan membalas 409.\n\nAkibatnya, kalau collection mau dijalankan ulang dari awal, bersihkan dulu dengan:\n    mysql -u root < reset.sql",
+			"item": [
+				{
+					"name": "12a. DELETE /categories/:id dipakai kelas (409)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 409 Conflict', function () {",
+									"    pm.response.to.have.status(409);",
+									"});",
+									"pm.test('pesan menyebut jumlah kelas', function () {",
+									"    pm.expect(pm.response.json().message).to.contain('dipakai');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/categories/{{categoryId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["categories", "{{categoryId}}"]
+						},
+						"description": "Harus DITOLAK 409 karena kategori masih dipakai kelas. Mencegah data katalog ikut terhapus."
+					}
+				},
+				{
+					"name": "12b. DELETE /tutors/:id mengajar kelas (409)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 409 Conflict', function () {",
+									"    pm.response.to.have.status(409);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/tutors/{{tutorId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["tutors", "{{tutorId}}"]
+						},
+						"description": "Harus DITOLAK 409 karena tutor masih mengajar kelas."
+					}
+				},
+				{
+					"name": "12c. DELETE /questions/:id punya opsi (409)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 409 Conflict', function () {",
+									"    pm.response.to.have.status(409);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/questions/{{questionId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["questions", "{{questionId}}"]
+						},
+						"description": "Harus DITOLAK 409 karena soal masih punya opsi jawaban."
+					}
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:3000",
+			"type": "string"
+		},
+		{
+			"key": "userId",
+			"value": "uid001",
+			"type": "string"
+		},
+		{
+			"key": "categoryId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "tutorId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "courseId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "moduleId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "videoMaterialId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "quizMaterialId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "assessmentId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "questionId",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
